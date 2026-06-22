@@ -1,0 +1,25 @@
+# One-click deploy config for Render (https://render.com).
+# With this file in your repo, Render auto-detects the service settings.
+# After connecting the repo, you only fill in the secret values marked sync: false.
+services:
+  - type: web
+    name: missed-call-textback
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_NUMBER
+        sync: false
+      - key: FORWARD_TO
+        value: ""        # blank = demo mode (always text back)
+      - key: BUSINESS_NAME
+        value: "Acme Dental"
+      - key: BOOKING_LINK
+        value: "https://cal.com/your-handle"
+      - key: PUBLIC_URL
+        sync: false       # set to your Render URL after first deploy, e.g. https://missed-call-textback.onrender.com
