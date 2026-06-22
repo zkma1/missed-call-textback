@@ -74,11 +74,13 @@ async function sendTextBack(toNumber) {
 }
 
 // ---- Voice webhook: Twilio hits this when the number is CALLED ----------------
-app.post("/voice", (req, res) => {
+app.post("/voice", async (req, res) => {
   const twiml = new twilio.twiml.VoiceResponse();
   const statusCallback = `${PUBLIC_URL || ""}/status`;
 
   if (FORWARD_TO) {
+    // Ring your real phone for 15s; if unanswered, the Dial completes and
+    // Twilio fires the call statusCallback below with no-answer/busy.
     const dial = twiml.dial({
       timeout: 15,
       action: "/dial-result",
@@ -93,9 +95,17 @@ app.post("/voice", (req, res) => {
       FORWARD_TO
     );
   } else {
+    // Demo mode: no phone to forward to. Send the text-back right now (the call
+    // completes normally, so we can't rely on a "missed" status callback), then
+    // greet and hang up.
+    try {
+      await sendTextBack(req.body.From);
+    } catch (err) {
+      console.error("Failed to send text-back:", err.message);
+    }
     twiml.say(
       { voice: "alice" },
-      `Thanks for calling ${BUSINESS_NAME}. We can't take your call right now, but we'll text you a link to book a time. Talk soon!`
+      `Thanks for calling ${BUSINESS_NAME}. We can't take your call right now, but we just texted you a link to book a time. Talk soon!`
     );
     twiml.hangup();
   }
@@ -103,8 +113,9 @@ app.post("/voice", (req, res) => {
   res.type("text/xml").send(twiml.toString());
 });
 
+// ---- Dial result: runs after the forwarded-call <Dial> finishes --------------
 app.post("/dial-result", async (req, res) => {
-  const dialStatus = req.body.DialCallStatus;
+  const dialStatus = req.body.DialCallStatus; // completed | no-answer | busy | failed
   const caller = req.body.From;
 
   const twiml = new twilio.twiml.VoiceResponse();
@@ -119,6 +130,7 @@ app.post("/dial-result", async (req, res) => {
   res.type("text/xml").send(twiml.toString());
 });
 
+// ---- Call status webhook: the safety net for missed calls --------------------
 app.post("/status", async (req, res) => {
   const status = req.body.CallStatus || req.body.DialCallStatus;
   const caller = req.body.From;
@@ -136,6 +148,7 @@ app.post("/status", async (req, res) => {
   res.sendStatus(204);
 });
 
+// ---- Health check ------------------------------------------------------------
 app.get("/", (_req, res) => {
   res.send(
     `Missed-call text-back is running. Mode: ${
@@ -144,6 +157,7 @@ app.get("/", (_req, res) => {
   );
 });
 
+// Export helpers for the simulator / tests.
 module.exports = { app, sendTextBack, textBackBody, MISSED_STATUSES };
 
 if (require.main === module) {
